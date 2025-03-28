@@ -10,6 +10,7 @@ load_dotenv()
 
 st.title("Marine Parts Image Identifier")
 
+
 # Load the catalog data
 @st.cache_data
 def load_catalog():
@@ -51,12 +52,11 @@ def generate_sales_description(part_info):
         - Price: {part_info.get('Price', 'Contact for pricing')}
         - Description: {part_info['Description']}
         
-        Write a friendly, enthusiastic paragraph selling this product. Mention its benefits, 
-        availability, and suggest when a customer might need it. Be personable and helpful.
+        You're a marine supply shop salesperson. The person showed you this part. They quickly want to know if we have it and how much it is. And then ask if you can help any more.
         """
         
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-3-5-haiku-20241022",
             max_tokens=500,
             messages=[
                 {"role": "user", "content": prompt}
@@ -68,6 +68,60 @@ def generate_sales_description(part_info):
     except Exception as e:
         st.error(f"Error generating description: {str(e)}")
         return "Could not generate product description at this time."
+
+# Function to convert text to speech using ElevenLabs API
+def text_to_speech(text):
+    try:
+        import requests
+        import io
+        
+        # Get API key from environment variables
+        elevenlabs_api_key = "128498ff7866a6e9bce6e996585a4045"
+
+        
+        if not elevenlabs_api_key:
+            st.warning("ElevenLabs API key not found in environment variables.")
+            return None
+            
+        # Default voice ID - you can change this to any voice you prefer
+        voice_id = "21m00Tcm4TlvDq8ikWAM"  # Default ElevenLabs voice
+        
+        # API endpoint for streaming
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+        
+        # Headers
+        headers = {
+            "xi-api-key": elevenlabs_api_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Request body
+        data = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "output_format": "mp3_44100_128"
+        }
+        
+        # Make the API request with stream=True
+        response = requests.post(url, json=data, headers=headers, stream=True)
+        
+        if response.status_code == 200:
+            # Collect all chunks into a BytesIO object
+            audio_data = io.BytesIO()
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    audio_data.write(chunk)
+            
+            # Reset the pointer to the beginning of the BytesIO object
+            audio_data.seek(0)
+            return audio_data.getvalue()
+        else:
+            st.error(f"Error from ElevenLabs API: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        st.error(f"Error converting text to speech: {str(e)}")
+        return None
 
 # Add extracted SKU and expected filename columns
 catalog_df['Image_SKU'] = catalog_df['Image URL'].apply(extract_sku_from_url)
@@ -115,6 +169,12 @@ if uploaded_file is not None:
             sales_description = generate_sales_description(filename_matches.iloc[0])
             st.write("### Product Description")
             st.write(sales_description)
+            
+            # Generate audio for the sales description
+            with st.spinner("Converting description to audio..."):
+                audio_data = text_to_speech(sales_description)
+                if audio_data:
+                    st.audio(audio_data, format="audio/mp3")
     else:
         # Look for matching parts by image SKU
         matches = catalog_df[catalog_df['Image_SKU'] == extracted_sku]
@@ -128,6 +188,12 @@ if uploaded_file is not None:
                 sales_description = generate_sales_description(matches.iloc[0])
                 st.write("### Product Description")
                 st.write(sales_description)
+                
+                # Generate audio for the sales description
+                with st.spinner("Converting description to audio..."):
+                    audio_data = text_to_speech(sales_description)
+                    if audio_data:
+                        st.audio(audio_data, format="audio/mp3")
         else:
             st.write("No matching parts found by image name or SKU.")
             
@@ -141,4 +207,10 @@ if uploaded_file is not None:
                 with st.spinner("Generating product description..."):
                     sales_description = generate_sales_description(sku_matches.iloc[0])
                     st.write("### Product Description")
-                    st.write(sales_description) 
+                    st.write(sales_description)
+                    
+                    # Generate audio for the sales description
+                    with st.spinner("Converting description to audio..."):
+                        audio_data = text_to_speech(sales_description)
+                        if audio_data:
+                            st.audio(audio_data, format="audio/mp3") 
