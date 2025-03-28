@@ -38,7 +38,12 @@ def extract_expected_filename(url):
 # Function to generate sales description using Claude
 def generate_sales_description(part_info):
     try:
-        client = anthropic.Anthropic()
+        # Simple initialization with just the API key
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return "API key not found. Please check your .env file."
+            
+        client = anthropic.Anthropic(api_key=api_key)
         
         # Creating a detailed prompt with product information
         prompt = f"""
@@ -56,7 +61,7 @@ def generate_sales_description(part_info):
         """
         
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-3-sonnet-20240229",
             max_tokens=500,
             messages=[
                 {"role": "user", "content": prompt}
