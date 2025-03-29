@@ -32,6 +32,70 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
       setError(`Error: ${error.message || 'Unknown error'}`);
       setIsStarted(false);
       setIsLoading(false);
+    },
+    clientTools: {
+      // Existing tools...
+      
+      // Add the new addToCart tool
+      addToCart: (params) => {
+        console.log('[CLIENT TOOL] addToCart called with params:', params);
+        
+        // Validate parameters
+        if (!params || !params.productId) {
+          console.error('[CLIENT TOOL] addToCart: Missing productId parameter');
+          return Promise.resolve("Failed to add product to cart. Missing product ID.");
+        }
+        
+        // Get the quantity (default to 1 if not provided)
+        const quantity = params.quantity ? parseInt(params.quantity) : 1;
+        console.log('[CLIENT TOOL] addToCart: Quantity parsed as', quantity);
+        
+        try {
+          // Get current product from props
+          const product = productData;
+          console.log('[CLIENT TOOL] addToCart: Current productData:', product);
+          
+          // If the ID matches the current product, add it to cart
+          if (product && product.SKU === params.productId) {
+            console.log('[CLIENT TOOL] addToCart: Product SKU matches', product.SKU);
+            
+            // Format the product for cart (using existing format)
+            const cartProduct = {
+              id: product.SKU,
+              name: product.Name,
+              price: typeof product.Price === 'string' 
+                ? parseFloat(product.Price.replace(/[$,]/g, '')) || 0
+                : (typeof product.Price === 'number' ? product.Price : 0),
+              category: product.Path?.split('  ')[1] || 'Marine Parts',
+              image: product.Image_URL || product["Image URL"],
+              color: '',
+              description: product.Description,
+              sku: product.SKU,
+              stock: product.Stock,
+            };
+            
+            console.log('[CLIENT TOOL] addToCart: Formatted cart product:', cartProduct);
+            
+            // Dispatch an event to add to cart
+            console.log('[CLIENT TOOL] addToCart: Dispatching cart:addItem event with quantity', quantity);
+            window.dispatchEvent(new CustomEvent('cart:addItem', { 
+              detail: { product: cartProduct, quantity } 
+            }));
+            console.log('[CLIENT TOOL] addToCart: Event dispatched successfully');
+            
+            return Promise.resolve(`Successfully added ${quantity} ${quantity === 1 ? 'unit' : 'units'} of ${product.Name} to your cart.`);
+          } else {
+            console.error('[CLIENT TOOL] addToCart: Product SKU mismatch or product not found');
+            console.log('[CLIENT TOOL] addToCart: Requested SKU:', params.productId);
+            console.log('[CLIENT TOOL] addToCart: Available product SKU:', product ? product.SKU : 'undefined');
+          }
+          
+          return Promise.resolve("Could not find the specified product. Please try again with a valid product ID.");
+        } catch (error) {
+          console.error('Error adding product to cart:', error);
+          return Promise.resolve("An error occurred while adding the product to cart. Please try again.");
+        }
+      }
     }
   });
 
