@@ -42,8 +42,8 @@ const AppContent = () => {
   };
 
   // Function to handle starting a conversation about a product
-  const handleStartConversation = (product) => {
-    console.log('Starting conversation about product:', product.Name);
+  const handleStartConversation = (product = null) => {
+    console.log('Starting conversation:', product ? `about product: ${product.Name}` : 'general conversation');
     setSelectedProduct(product);
     setConversationModalOpen(true);
   };
@@ -101,6 +101,28 @@ const AppContent = () => {
       </header>
       
       <div className="container mx-auto px-4 py-8">
+        {/* AI Assistant Button above the heading */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => handleStartConversation()}
+            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded flex items-center"
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              className="w-5 h-5 mr-2"
+            >
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 16h2v-6h-2v6zm0-8h2V8h-2v2z"></path>
+            </svg>
+            Discuss with AI
+          </button>
+        </div>
+        
         <div className="mb-12">
           <h2 className="text-2xl font-semibold mb-6">Image Upload with SKU Extraction</h2>
           <p className="mb-4 text-gray-600">
@@ -117,14 +139,12 @@ const AppContent = () => {
       {/* Cart Drawer */}
       <CartDrawer />
       
-      {/* Add the conversation modal */}
-      {selectedProduct && (
-        <ConversationModal 
-          isOpen={conversationModalOpen}
-          onClose={() => setConversationModalOpen(false)}
-          productData={selectedProduct}
-        />
-      )}
+      {/* Add the conversation modal - removed selectedProduct condition */}
+      <ConversationModal 
+        isOpen={conversationModalOpen}
+        onClose={() => setConversationModalOpen(false)}
+        productData={selectedProduct}
+      />
     </div>
   );
 };

@@ -2,15 +2,49 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useConversation } from '@11labs/react';
 import { getSignedUrl } from '../utils/elevenLabsAuth';
 
+// In Vite, when importing assets from the assets directory, we need to use relative paths
+// You'll need to add this image to the assets/images directory
+import chatbotAvatar from '../assets/images/chatbot-avatar.png';
+
+// API endpoint for inventory
+const INVENTORY_API = 'https://opensheet.elk.sh/1euKbdyTecaQmPZmupqmWfkVhVqp9ZJ4BCTFJHHGmdXI/1';
+
 const ConversationModal = ({ isOpen, onClose, productData }) => {
   const [isStarted, setIsStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const connectionAttemptedRef = useRef(false);
+  const inventoryCacheRef = useRef(null);
   
   // Use agent ID from environment variables with fallback
   const agentId = import.meta.env.VITE_ELEVENLABS_AGENT_ID || 'sLkZceb7wwYGFIpbKZgT';
   
+  // Helper function to fetch inventory data
+  const fetchInventory = async () => {
+    if (inventoryCacheRef.current) {
+      return inventoryCacheRef.current;
+    }
+    
+    try {
+      console.log('[INVENTORY] Fetching inventory data from API...');
+      const response = await fetch(INVENTORY_API);
+      
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`[INVENTORY] Successfully fetched ${data.length} products`);
+      
+      // Cache the data for future use
+      inventoryCacheRef.current = data;
+      return data;
+    } catch (error) {
+      console.error('[INVENTORY] Error fetching inventory:', error);
+      throw error;
+    }
+  };
+
   // ElevenLabs conversation hook
   const conversation = useConversation({
     onConnect: () => {
@@ -34,10 +68,48 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
       setIsLoading(false);
     },
     clientTools: {
-      // Existing tools...
+      // Add the searchProducts tool
+      searchProducts: async (params) => {
+        console.log('[CLIENT TOOL] searchProducts called with params:', params);
+        
+        if (!params || !params.query) {
+          return Promise.resolve({
+            success: false,
+            message: "Search query is required",
+            products: []
+          });
+        }
+        
+        try {
+          const inventory = await fetchInventory();
+          const query = params.query.toLowerCase();
+          
+          const results = inventory.filter(product => 
+            (product.Name && product.Name.toLowerCase().includes(query)) || 
+            (product.Description && product.Description.toLowerCase().includes(query)) ||
+            (product.SKU && product.SKU.toLowerCase().includes(query)) ||
+            (product.MPN && product.MPN.toLowerCase().includes(query))
+          );
+          
+          console.log(`[CLIENT TOOL] Search results: Found ${results.length} products matching "${params.query}"`);
+          
+          return {
+            success: true,
+            message: `Found ${results.length} products matching "${params.query}"`,
+            products: results
+          };
+        } catch (error) {
+          console.error('[CLIENT TOOL] Error searching products:', error);
+          return {
+            success: false,
+            message: "An error occurred while searching for products",
+            products: []
+          };
+        }
+      },
       
-      // Add the new addToCart tool
-      addToCart: (params) => {
+      // Add the addToCart tool
+      addToCart: async (params) => {
         console.log('[CLIENT TOOL] addToCart called with params:', params);
         
         // Validate parameters
@@ -51,15 +123,21 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
         console.log('[CLIENT TOOL] addToCart: Quantity parsed as', quantity);
         
         try {
-          // Get current product from props
-          const product = productData;
-          console.log('[CLIENT TOOL] addToCart: Current productData:', product);
+          // First check if we have a preselected product
+          let product = productData;
           
-          // If the ID matches the current product, add it to cart
-          if (product && product.SKU === params.productId) {
-            console.log('[CLIENT TOOL] addToCart: Product SKU matches', product.SKU);
-            
-            // Format the product for cart (using existing format)
+          // If not, or if the SKU doesn't match, search in our inventory
+          if (!product || product.SKU !== params.productId) {
+            console.log('[CLIENT TOOL] addToCart: Searching in inventory for SKU:', params.productId);
+            const inventory = await fetchInventory();
+            product = inventory.find(p => p.SKU === params.productId);
+          }
+          
+          console.log('[CLIENT TOOL] addToCart: Found product:', product);
+          
+          // If we found a product, add it to cart
+          if (product) {
+            // Format the product for cart
             const cartProduct = {
               id: product.SKU,
               name: product.Name,
@@ -85,12 +163,9 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
             
             return Promise.resolve(`Successfully added ${quantity} ${quantity === 1 ? 'unit' : 'units'} of ${product.Name} to your cart.`);
           } else {
-            console.error('[CLIENT TOOL] addToCart: Product SKU mismatch or product not found');
-            console.log('[CLIENT TOOL] addToCart: Requested SKU:', params.productId);
-            console.log('[CLIENT TOOL] addToCart: Available product SKU:', product ? product.SKU : 'undefined');
+            console.error('[CLIENT TOOL] addToCart: Product not found with SKU:', params.productId);
+            return Promise.resolve(`Could not find a product with SKU: ${params.productId}. Please try searching for a product first.`);
           }
-          
-          return Promise.resolve("Could not find the specified product. Please try again with a valid product ID.");
         } catch (error) {
           console.error('Error adding product to cart:', error);
           return Promise.resolve("An error occurred while adding the product to cart. Please try again.");
@@ -99,7 +174,7 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
     }
   });
 
-  // Start conversation with product context
+  // Start conversation with or without product context
   const startConversation = useCallback(async () => {
     if (isStarted || isLoading) return; // Prevent multiple connection attempts
     
@@ -114,27 +189,47 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
       // Get signed URL for authentication
       const signedUrl = await getSignedUrl(agentId);
       
-      // Prepare the first message and context with product information
+      // Prepare overrides object based on whether we have product data
       const overrides = {
         agent: {
-          firstMessage: `I see you're looking at the ${productData.Name}. How can I help you with this product?`,
+          firstMessage: productData 
+            ? `I see you're looking at the ${productData.Name}. How can I help you with this product?`
+            : "Hello, I'm your Marine Parts Assistant. What kind of marine product are you looking for today?",
           prompt: {
-            prompt: JSON.stringify({
-              product: productData,
-              context: `The user is viewing a marine part with the following details:
-              - Name: ${productData.Name}
-              - SKU: ${productData.SKU}
-              - Price: ${productData.Price}
-              - Stock: ${productData.Stock || 'Not specified'}
-              - Description: ${productData.Description}
-              - Additional Details: ${productData.Additional_Details || productData["Additional Details"] || 'Not available'}
-              
-              You are a helpful marine parts assistant. Answer questions about this specific product using the provided information.
-              If the user asks something not related to this product, you can still help, but remind them which product they're currently viewing.
-              
-              If asked about compatibility, delivery times, or other information not in the product details, let them know you can only provide information based on what's in the product description.
-              `
-            })
+            prompt: JSON.stringify(productData 
+              ? {
+                  product: productData,
+                  context: `The user is viewing a marine part with the following details:
+                  - Name: ${productData.Name}
+                  - SKU: ${productData.SKU}
+                  - Price: ${productData.Price}
+                  - Stock: ${productData.Stock || 'Not specified'}
+                  - Description: ${productData.Description}
+                  - Additional Details: ${productData.Additional_Details || productData["Additional Details"] || 'Not available'}
+                  
+                  You are a helpful marine parts assistant. Answer questions about this specific product using the provided information.
+                  If the user asks something not related to this product, you can still help, but remind them which product they're currently viewing.
+                  
+                  If asked about compatibility, delivery times, or other information not in the product details, let them know you can only provide information based on what's in the product description.
+                  `
+                }
+              : {
+                  context: `You are a helpful marine parts assistant specializing in boats, jet skis, outboard motors, and related marine equipment.
+                  
+                  You can help users find products by asking about their needs and then using the searchProducts tool.
+                  Once you find products, you can recommend them and add them to the cart using the addToCart tool.
+                  
+                  When users are interested in a product:
+                  1. Use searchProducts to find products matching their description
+                  2. Present the options clearly with product names, prices, and brief descriptions
+                  3. If they want to purchase, use addToCart with the correct SKU
+                  
+                  Be helpful, conversational, and guide the user through the process of finding marine parts.
+                  
+                  Our inventory includes many marine products from brands like Mercury Marine, Yamaha, Sea-Doo, and many others.
+                  `
+                }
+            )
           }
         }
       };
@@ -170,11 +265,19 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
     }
   }, [conversation, isStarted]);
   
+  // Preload inventory data when component mounts
+  useEffect(() => {
+    // Fetch inventory data to populate the cache
+    fetchInventory().catch(error => {
+      console.error('Error preloading inventory data:', error);
+    });
+  }, []);
+  
   // Start conversation when modal opens
   useEffect(() => {
     let mounted = true;
     
-    if (isOpen && productData && !isStarted && !connectionAttemptedRef.current && !isLoading) {
+    if (isOpen && !isStarted && !connectionAttemptedRef.current && !isLoading) {
       startConversation();
     }
     
@@ -185,7 +288,7 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
         endConversation();
       }
     };
-  }, [isOpen, productData, startConversation, endConversation, isStarted, isLoading]);
+  }, [isOpen, startConversation, endConversation, isStarted, isLoading]);
   
   if (!isOpen) return null;
   
@@ -207,48 +310,64 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
           </button>
         </div>
         
-        <div className="mb-4 p-3 bg-gray-100 rounded-lg">
-          <div className="flex items-center">
-            <div className="w-16 h-16 mr-4 bg-gray-200 rounded overflow-hidden">
-              <img 
-                src={productData.Image_URL || productData["Image URL"]} 
-                alt={productData.Name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "https://via.placeholder.com/150?text=No+Image";
-                }}
-              />
-            </div>
-            <div>
-              <p className="font-medium">{productData.Name}</p>
-              <p className="text-sm text-gray-600">SKU: {productData.SKU}</p>
-              <p className="text-sm">{productData.Price}</p>
-              {productData.Stock && <p className="text-sm text-gray-600">Stock: {productData.Stock}</p>}
+        {/* Only show product info if we have a product */}
+        {productData && (
+          <div className="mb-4 p-3 bg-gray-100 rounded-lg">
+            <div className="flex items-center">
+              <div className="w-16 h-16 mr-4 bg-gray-200 rounded overflow-hidden">
+                <img 
+                  src={productData.Image_URL || productData["Image URL"]} 
+                  alt={productData.Name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://via.placeholder.com/150?text=No+Image";
+                  }}
+                />
+              </div>
+              <div>
+                <p className="font-medium">{productData.Name}</p>
+                <p className="text-sm text-gray-600">SKU: {productData.SKU}</p>
+                <p className="text-sm">{productData.Price}</p>
+                {productData.Stock && <p className="text-sm text-gray-600">Stock: {productData.Stock}</p>}
+              </div>
             </div>
           </div>
-        </div>
+        )}
         
-        <div className="text-center text-gray-500 italic mb-4">
+        <div className="text-center mb-4">
           {error ? (
             <p className="text-red-500 mb-2">{error}</p>
           ) : (
-            <>
-              <p>Speak to ask questions about this marine part</p>
-              <p className="text-xs mt-1">
-                {isLoading ? 'Connecting...' : 
-                  conversation.status === 'connected' 
-                    ? 'AI is listening...' 
-                    : conversation.status === 'connecting' 
-                      ? 'Connecting...' 
-                      : conversation.status === 'disconnected' && isStarted 
-                        ? 'Reconnecting...'
-                        : conversation.status}
-              </p>
-              {conversation.isSpeaking && (
-                <p className="text-xs mt-1 text-blue-500">AI is speaking...</p>
-              )}
-            </>
+            <div className="flex items-center justify-center">
+              <div className="w-12 h-12 mr-3 bg-blue-100 rounded-full overflow-hidden flex-shrink-0">
+                <img 
+                  src={chatbotAvatar}
+                  alt="AI Assistant" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDA3MGYzIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgY2xhc3M9ImZlYXRoZXIgZmVhdGhlci11c2VyIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+";
+                  }}
+                />
+              </div>
+              <div className="text-left">
+                <p className="text-gray-800 font-medium">Marine AI Assistant</p>
+                <p className="text-xs text-gray-500">
+                  {isLoading ? 'Connecting...' : 
+                    conversation.status === 'connected' 
+                      ? 'AI is listening...' 
+                      : conversation.status === 'connecting' 
+                        ? 'Connecting...' 
+                        : conversation.status === 'disconnected' && isStarted 
+                          ? 'Reconnecting...'
+                          : conversation.status}
+                </p>
+                {conversation.isSpeaking && (
+                  <p className="text-xs mt-1 text-blue-500">AI is speaking...</p>
+                )}
+              </div>
+            </div>
           )}
         </div>
         
