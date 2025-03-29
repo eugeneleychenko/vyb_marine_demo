@@ -108,6 +108,84 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
         }
       },
       
+      // Add the filterProducts function
+      filterProducts: async (params) => {
+        console.log('[CLIENT TOOL] filterProducts called with params:', params);
+        
+        // Get keyword and validate
+        const keyword = params.keyword;
+        if (!keyword) {
+          console.error('[CLIENT TOOL] filterProducts: Missing keyword parameter');
+          return Promise.resolve({
+            success: false,
+            message: "Keyword parameter is required",
+            products: []
+          });
+        }
+        
+        const maxResults = params.maxResults || 5;
+        const sortBy = params.sortBy || "relevance";
+        
+        console.log(`[CLIENT TOOL] filterProducts: Searching for "${keyword}", max results: ${maxResults}, sort by: ${sortBy}`);
+        
+        try {
+          // Fetch inventory and filter by keyword
+          const inventory = await fetchInventory();
+          let matches = inventory.filter(product => 
+            (product.Name && product.Name.toLowerCase().includes(keyword.toLowerCase())) ||
+            (product.Description && product.Description.toLowerCase().includes(keyword.toLowerCase())) ||
+            (product.MPN && product.MPN.toLowerCase().includes(keyword.toLowerCase()))
+          );
+          
+          console.log(`[CLIENT TOOL] filterProducts: Found ${matches.length} matches for "${keyword}"`);
+          
+          // Sort results if requested
+          if (sortBy === "price") {
+            matches.sort((a, b) => parseFloat(a.Price?.replace(/[$,]/g, '') || 0) - parseFloat(b.Price?.replace(/[$,]/g, '') || 0));
+            console.log('[CLIENT TOOL] filterProducts: Sorted results by price');
+          } else if (sortBy === "name") {
+            matches.sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+            console.log('[CLIENT TOOL] filterProducts: Sorted results by name');
+          }
+          
+          // Limit results
+          matches = matches.slice(0, maxResults);
+          console.log(`[CLIENT TOOL] filterProducts: Limited to ${matches.length} results`);
+          
+          // Display results in carousel
+          if (matches.length > 0) {
+            console.log('[CLIENT TOOL] filterProducts: Dispatching showProductCarousel event');
+            window.dispatchEvent(new CustomEvent('marine:showProductCarousel', { 
+              detail: { products: matches } 
+            }));
+          }
+          
+          // Return formatted results
+          return {
+            success: true,
+            count: matches.length,
+            products: matches.map(p => ({
+              name: p.Name,
+              sku: p.SKU,
+              mpn: p.MPN,
+              price: p.Price,
+              stock: p.Stock || "Out of stock",
+              description: p.Description ? p.Description.substring(0, 100) + (p.Description.length > 100 ? '...' : '') : 'No description available',
+              imageUrl: p["Image URL"],
+              productUrl: p.Links,
+              path: p.Path ? p.Path.substring(0, p.Path.lastIndexOf(p.Name)).trim() : ''
+            }))
+          };
+        } catch (error) {
+          console.error('[CLIENT TOOL] filterProducts error:', error);
+          return {
+            success: false,
+            message: "An error occurred while filtering products",
+            products: []
+          };
+        }
+      },
+      
       // Add the addToCart tool
       addToCart: async (params) => {
         console.log('[CLIENT TOOL] addToCart called with params:', params);
@@ -170,6 +248,22 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
           console.error('Error adding product to cart:', error);
           return Promise.resolve("An error occurred while adding the product to cart. Please try again.");
         }
+      },
+      
+      // Add the openImageUpload function
+      openImageUpload: () => {
+        console.log('[CLIENT TOOL] openImageUpload called');
+        
+        try {
+          // Dispatch an event to open the image upload drawer
+          window.dispatchEvent(new CustomEvent('marine:openImageUpload'));
+          console.log('[CLIENT TOOL] openImageUpload: Event dispatched successfully');
+          
+          return Promise.resolve('Image upload panel opened. You can now upload an image to find marine parts.');
+        } catch (error) {
+          console.error('[CLIENT TOOL] openImageUpload error:', error);
+          return Promise.resolve('Sorry, there was an error opening the image upload panel. Please try again.');
+        }
       }
     }
   });
@@ -194,7 +288,7 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
         agent: {
           firstMessage: productData 
             ? `I see you're looking at the ${productData.Name}. How can I help you with this product?`
-            : "Hello, I'm your Marine Parts Assistant. What kind of marine product are you looking for today?",
+            : "Hey, thanks for coming to Lighthouse Marine Supply. Can I help you find something or do you have an image of the product that you want to replace?",
           prompt: {
             prompt: JSON.stringify(productData 
               ? {
