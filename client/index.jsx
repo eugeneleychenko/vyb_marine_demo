@@ -4,17 +4,17 @@ import FileUploader from './components/FileUploader';
 import { CartProvider, useCart } from './components/CartContext';
 import CartIcon from './components/CartIcon';
 import CartDrawer from './components/CartDrawer';
-import ConversationModal from './components/ConversationModal';
 import ProductCarousel from './components/ProductCarousel';
 import ImageUploadDrawer from './components/ImageUploadDrawer';
+import InlineConversation from './components/InlineConversation';
 import chatbotAvatar from './assets/images/chatbot-avatar.png';
 
 import './index.css';
 
 // Create a component that uses the cart context hooks
 const AppContent = () => {
-  // Add state for conversation modal and image upload drawer
-  const [conversationModalOpen, setConversationModalOpen] = useState(false);
+  // Replace modal state with active conversation state
+  const [conversationActive, setConversationActive] = useState(false);
   const [imageUploadDrawerOpen, setImageUploadDrawerOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   
@@ -52,7 +52,7 @@ const AppContent = () => {
   const handleStartConversation = (product = null) => {
     console.log('Starting conversation:', product ? `about product: ${product.Name}` : 'general conversation');
     setSelectedProduct(product);
-    setConversationModalOpen(true);
+    setConversationActive(true);
     // Close the image upload drawer if it's open
     if (imageUploadDrawerOpen) {
       setImageUploadDrawerOpen(false);
@@ -61,11 +61,13 @@ const AppContent = () => {
 
   // Toggle conversation based on current state
   const toggleConversation = () => {
-    if (conversationModalOpen) {
-      setConversationModalOpen(false);
-    } else {
-      handleStartConversation();
-    }
+    const newState = !conversationActive;
+    console.log(`[AVATAR] Toggle conversation: ${newState ? 'starting' : 'ending'} conversation`);
+    
+    // Allow some time for previous state changes to finish
+    setTimeout(() => {
+      setConversationActive(newState);
+    }, 10);
   };
 
   // Function to handle adding product to cart (from voice command)
@@ -158,8 +160,9 @@ const AppContent = () => {
           <div className="flex justify-center mb-8">
             <button
               onClick={toggleConversation}
-              className="w-24 h-24 rounded-full overflow-hidden hover:shadow-lg transition-shadow duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-              title={conversationModalOpen ? "End Conversation" : "Start Conversation"}
+              className={`w-24 h-24 rounded-full overflow-hidden transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
+                ${conversationActive ? 'ring-2 ring-blue-500 shadow-lg' : 'hover:shadow-lg'}`}
+              title={conversationActive ? "End Conversation" : "Start Conversation"}
             >
               <img 
                 src={chatbotAvatar}
@@ -186,10 +189,10 @@ const AppContent = () => {
         onStartConversation={handleStartConversation}
       />
       
-      {/* Conversation Modal */}
-      <ConversationModal 
-        isOpen={conversationModalOpen}
-        onClose={() => setConversationModalOpen(false)}
+      {/* Replace modal with inline conversation */}
+      <InlineConversation 
+        isActive={conversationActive}
+        onClose={() => setConversationActive(false)}
         productData={selectedProduct}
       />
     </div>

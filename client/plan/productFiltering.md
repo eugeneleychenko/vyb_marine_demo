@@ -16,31 +16,33 @@ We will implement a new client tool function called `filterProducts` that can be
 - `maxResults` (Number, Optional): Maximum number of results to return (default: 5)
 - `sortBy` (String, Optional): How to sort results ("price", "name", "relevance")
 
+#### Search Behavior
+
+The function will only search for the keyword in the product Name field. Previous versions searched across Name, Description, and MPN fields, but current implementation focuses only on Name for more precise matching.
+
 #### API Data Structure
 
 Our inventory data is fetched from `https://opensheet.elk.sh/1euKbdyTecaQmPZmupqmWfkVhVqp9ZJ4BCTFJHHGmdXI/1` and has the following structure:
 
 ```json
-[
-  {
-    "Links": "https://marineengineparts.com/yamaha-90480-20m05-00-grommet",
-    "Name": "Yamaha 90480-20M05-00 Grommet",
-    "SKU": "YAM90480-20M05",
-    "MPN": "90480-20M05-00",
-    "UPC": "12345680462",
-    "Price": "$5.19",
-    "Stock": "3",
-    "Description": "Yamaha 90480-20M05-00 Valve pressure Control Grommet.\n\nFits Models: 115, 130, 150...",
-    "Additional Details": "\n        \n\n                \n                    Brand\n                    Yamaha Marine\n                \n\n                \n                    Cross Reference / Specs\n                    \n                \n        \n                    \n                        \n                            \n                        \n                        \n                            PROPOSITION 65 WARNING: FOR MORE INFORMATION, VISIT WWW.P65WARNINGS.CA.GOV\n                        \n                    \n    ",
-    "Path": "Home  Engine & Drive Parts  Outboards  Yamaha  Engine Mechanical  Yamaha 90480-20M05-00 Grommet",
-    "Image URL": "https://cdn11.bigcommerce.com/s-aiepu2kcnu/images/stencil/760x760/products/27483/16034002/YAM90480-20M05__38589.1743225293.jpg?c=1"
-  }
-]
+{
+  "Links": "https://example.com/product/123",
+  "Name": "Yamaha Fuel Pump Assembly",
+  "SKU": "YAM-6P3-24410-01-00",
+  "MPN": "6P3-24410-01-00",
+  "UPC": "123456789012",
+  "Price": "$249.99",
+  "Stock": "5",
+  "Description": "OEM Yamaha outboard fuel pump assembly for F150 and F200 models",
+  "Additional Details": "Compatible with 2004-2011 engines",
+  "Path": "Engine  Fuel System  Fuel Pumps  Yamaha Fuel Pump Assembly",
+  "Image URL": "https://example.com/images/yamaha-fuel-pump.jpg"
+}
 ```
 
 #### Function Response
 
-The function will process this data and return a simplified structure for the AI:
+The function returns an object with the following structure:
 
 ```json
 {
@@ -48,27 +50,17 @@ The function will process this data and return a simplified structure for the AI
   "count": 3,
   "products": [
     {
-      "name": "Yamaha 90480-20M05-00 Grommet",
-      "sku": "YAM90480-20M05",
-      "mpn": "90480-20M05-00",
-      "price": "$5.19",
-      "stock": "3",
-      "description": "Yamaha 90480-20M05-00 Valve pressure Control Grommet...",
-      "imageUrl": "https://cdn11.bigcommerce.com/s-aiepu2kcnu/images/stencil/760x760/products/27483/16034002/YAM90480-20M05__38589.1743225293.jpg?c=1",
-      "productUrl": "https://marineengineparts.com/yamaha-90480-20m05-00-grommet",
-      "path": "Home  Engine & Drive Parts  Outboards  Yamaha  Engine Mechanical"
+      "name": "Yamaha Fuel Pump Assembly",
+      "sku": "YAM-6P3-24410-01-00",
+      "mpn": "6P3-24410-01-00",
+      "price": "$249.99",
+      "stock": "5",
+      "description": "OEM Yamaha outboard fuel pump assembly for F150 and F200 models",
+      "imageUrl": "https://example.com/images/yamaha-fuel-pump.jpg",
+      "productUrl": "https://example.com/product/123",
+      "path": "Engine  Fuel System  Fuel Pumps"
     },
-    {
-      "name": "Caterpillar 135-9819 Gasket-P",
-      "sku": "CAT135-9819",
-      "mpn": "135-9819",
-      "price": "$37.29",
-      "stock": "",
-      "description": "Caterpillar 135-9819 Gasket-P. Gasket for Sherwood pump P1732C and P1710C.",
-      "imageUrl": "https://cdn11.bigcommerce.com/s-aiepu2kcnu/images/stencil/760x760/products/21085/16030652/CAT135-9819__20934.1743219768.jpg?c=1",
-      "productUrl": "https://marineengineparts.com/caterpillar-135-9819-gasket-p",
-      "path": "Home  Engine & Drive Parts  Diesel Inboard Engine  Caterpillar  Cooling"
-    }
+    // Additional products...
   ]
 }
 ```
@@ -113,12 +105,10 @@ filterProducts: async (params) => {
   const maxResults = params.maxResults || 5;
   const sortBy = params.sortBy || "relevance";
   
-  // Fetch inventory and filter by keyword
+  // Fetch inventory and filter by keyword - only look at Name field
   const inventory = await fetchInventory();
   let matches = inventory.filter(product => 
-    (product.Name && product.Name.toLowerCase().includes(keyword.toLowerCase())) ||
-    (product.Description && product.Description.toLowerCase().includes(keyword.toLowerCase())) ||
-    (product.MPN && product.MPN.toLowerCase().includes(keyword.toLowerCase()))
+    (product.Name && product.Name.toLowerCase().includes(keyword.toLowerCase()))
   );
   
   // Sort results if requested
@@ -250,17 +240,17 @@ After showing results, ask if they'd like to refine the search, see more results
 
 ## Implementation Plan
 
-1. Create the `filterProducts` function in the ConversationModal component
-2. Develop the ProductCarousel component
-3. Set up the event system for communication between the AI and the carousel
-4. Configure the ElevenLabs AI to understand product filtering requests
-5. Implement UI styling for the carousel
-6. Test with various product categories and keywords
-7. Refine the response format based on testing results
+1. ✅ Create the `filterProducts` function in the ConversationModal component
+2. ✅ Develop the ProductCarousel component
+3. ✅ Set up the event system for communication between the AI and the carousel
+4. ✅ Configure the ElevenLabs AI to understand product filtering requests
+5. ✅ Implement UI styling for the carousel
+6. ✅ Test with various product categories and keywords
+7. ✅ Refine the response format based on testing results
 
 ## Future Enhancements
 
-- Add support for filtering by additional fields beyond name and description
+- Add support for filtering by additional fields beyond name (such as description, MPN, path)
 - Implement fuzzy matching for misspelled keywords
 - Add price range filtering ("Show me gaskets under $50")
 - Enable category filtering based on Path field ("Show me Yamaha outboard parts")

@@ -1,15 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useConversation } from '@11labs/react';
 import { getSignedUrl } from '../utils/elevenLabsAuth';
-
-// In Vite, when importing assets from the assets directory, we need to use relative paths
-// You'll need to add this image to the assets/images directory
 import chatbotAvatar from '../assets/images/chatbot-avatar.png';
 
 // API endpoint for inventory
 const INVENTORY_API = 'https://opensheet.elk.sh/1euKbdyTecaQmPZmupqmWfkVhVqp9ZJ4BCTFJHHGmdXI/1';
 
-const ConversationModal = ({ isOpen, onClose, productData }) => {
+const InlineConversation = ({ isActive, onClose, productData }) => {
   const [isStarted, setIsStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -53,50 +50,87 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
     },
     onDisconnect: () => {
       console.log('Disconnected from ElevenLabs AI');
-      // Only reset the state if we intentionally ended the session
-      if (connectionAttemptedRef.current) {
-        setIsStarted(false);
+      if (isActive && isStarted) {
+        console.log('Unexpected disconnection. Attempting reconnect...');
+        // Don't attempt auto reconnect here - let the user manually reconnect
       }
     },
-    onMessage: (message) => {
-      console.log('Message:', message);
-    },
     onError: (error) => {
-      console.error('Error:', error);
-      setError(`Error: ${error.message || 'Unknown error'}`);
-      setIsStarted(false);
+      console.error('Error from ElevenLabs AI:', error);
+      setError(`Connection error: ${error.message || 'Unknown error'}`);
       setIsLoading(false);
     },
+    
+    // Define client tools for ElevenLabs AI
     clientTools: {
       // Add the searchProducts tool
       searchProducts: async (params) => {
         console.log('[CLIENT TOOL] searchProducts called with params:', params);
         
-        if (!params || !params.query) {
-          return Promise.resolve({
+        // Get query and validate
+        const query = params.query;
+        if (!query) {
+          console.error('[CLIENT TOOL] searchProducts: Missing query parameter');
+          return {
             success: false,
-            message: "Search query is required",
+            message: "Query parameter is required",
             products: []
-          });
+          };
         }
         
+        console.log(`[CLIENT TOOL] searchProducts: Searching for "${query}"`);
+        
         try {
+          // Fetch inventory and filter by keyword
           const inventory = await fetchInventory();
-          const query = params.query.toLowerCase();
           
-          const results = inventory.filter(product => 
-            (product.Name && product.Name.toLowerCase().includes(query)) || 
-            (product.Description && product.Description.toLowerCase().includes(query)) ||
-            (product.SKU && product.SKU.toLowerCase().includes(query)) ||
-            (product.MPN && product.MPN.toLowerCase().includes(query))
-          );
+          const searchTerms = query.toLowerCase().split(' ');
           
-          console.log(`[CLIENT TOOL] Search results: Found ${results.length} products matching "${params.query}"`);
+          // Scoring function to rank results by relevance
+          const scoreProduct = (product) => {
+            let score = 0;
+            const nameLower = (product.Name || '').toLowerCase();
+            const descLower = (product.Description || '').toLowerCase();
+            const mpnLower = (product.MPN || '').toLowerCase();
+            
+            // Check for exact matches
+            if (nameLower.includes(query.toLowerCase())) score += 10;
+            if (mpnLower === query.toLowerCase()) score += 15;
+            
+            // Score each search term independently
+            for (const term of searchTerms) {
+              if (term.length < 3) continue; // Skip very short terms
+              
+              if (nameLower.includes(term)) score += 5;
+              if (descLower.includes(term)) score += 2;
+              if (mpnLower.includes(term)) score += 3;
+            }
+            
+            return score;
+          };
+          
+          // Filter and score products
+          let results = inventory
+            .map(product => ({ product, score: scoreProduct(product) }))
+            .filter(item => item.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map(item => item.product);
+            
+          console.log(`[CLIENT TOOL] searchProducts: Found ${results.length} results for "${query}"`);
           
           return {
             success: true,
-            message: `Found ${results.length} products matching "${params.query}"`,
-            products: results
+            count: results.length,
+            products: results.map(p => ({
+              name: p.Name,
+              sku: p.SKU,
+              mpn: p.MPN,
+              price: p.Price,
+              stock: p.Stock || "Out of stock",
+              description: p.Description ? p.Description.substring(0, 100) + (p.Description.length > 100 ? '...' : '') : 'No description available',
+              imageUrl: p["Image URL"]
+            }))
           };
         } catch (error) {
           console.error('[CLIENT TOOL] Error searching products:', error);
@@ -268,18 +302,30 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
 
   // Start conversation with or without product context
   const startConversation = useCallback(async () => {
-    if (isStarted || isLoading) return; // Prevent multiple connection attempts
+    // Prevent multiple connection attempts
+    if (isStarted || isLoading) {
+      console.log('[CONVERSATION] startConversation called but already started or loading - ignoring');
+      return;
+    }
+    
+    // Set connection attempt flag immediately to prevent race conditions
+    connectionAttemptedRef.current = true;
     
     try {
       setIsLoading(true);
       setError(null);
-      connectionAttemptedRef.current = true;
+      
+      console.log('[CONVERSATION] Requesting microphone permission');
       
       // Request microphone permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
       
+      console.log('[CONVERSATION] Getting signed URL for authentication');
+      
       // Get signed URL for authentication
       const signedUrl = await getSignedUrl(agentId);
+      
+      console.log('[CONVERSATION] Starting session with ElevenLabs');
       
       // Prepare overrides object based on whether we have product data
       const overrides = {
@@ -341,19 +387,34 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
     }
   }, [conversation, productData, agentId, isStarted, isLoading]);
   
-  // End conversation when modal closes
+  // End conversation when component unmounts or becomes inactive
   const endConversation = useCallback(async () => {
-    if (isStarted) {
-      try {
-        setIsLoading(true);
-        await conversation.endSession();
-        connectionAttemptedRef.current = false;
-        setIsStarted(false);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error ending conversation:', error);
-        setIsLoading(false);
-      }
+    // Only attempt to end if we're actually in a conversation
+    if (!isStarted) {
+      console.log('[CONVERSATION] endConversation called but not started - just resetting flags');
+      connectionAttemptedRef.current = false;
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log('[CONVERSATION] Ending conversation session');
+    
+    try {
+      setIsLoading(true);
+      
+      // Attempt to end the session with ElevenLabs
+      await conversation.endSession();
+      console.log('[CONVERSATION] Successfully ended conversation with ElevenLabs');
+      
+      // Reset all state
+      connectionAttemptedRef.current = false;
+      setIsStarted(false);
+    } catch (error) {
+      console.error('[CONVERSATION] Error ending conversation:', error);
+    } finally {
+      // Always turn off loading state, even if there was an error
+      setIsLoading(false);
+      console.log('[CONVERSATION] Cleanup complete');
     }
   }, [conversation, isStarted]);
   
@@ -365,48 +426,129 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
     });
   }, []);
   
-  // Start conversation when modal opens
+  // Start/end conversation based on isActive prop
   useEffect(() => {
-    let mounted = true;
+    console.log(`[CONVERSATION] isActive changed to: ${isActive}, isStarted: ${isStarted}, isLoading: ${isLoading}`);
     
-    if (isOpen && !isStarted && !connectionAttemptedRef.current && !isLoading) {
-      startConversation();
+    // Create stable reference to track if we're running this effect
+    // This prevents multiple overlapping effect executions
+    const effectId = Symbol('conversation-effect');
+    console.log('[CONVERSATION] Effect starting with ID:', effectId.toString());
+    
+    let mounted = true;
+    let connectionTimeout = null;
+    
+    // Function to start conversation with debounce
+    const initiateConversation = () => {
+      // Prevent initiating if we're already in the process or started
+      if (isStarted || isLoading || connectionAttemptedRef.current) {
+        console.log(`[CONVERSATION] Already in process - isStarted: ${isStarted}, isLoading: ${isLoading}, attempted: ${connectionAttemptedRef.current}`);
+        return;
+      }
+      
+      // Clear any existing timeout
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+      }
+      
+      // Set a small delay to avoid rapid connection attempts
+      connectionTimeout = setTimeout(() => {
+        if (!mounted) {
+          console.log('[CONVERSATION] Component unmounted before timeout completed');
+          return;
+        }
+        
+        if (!isStarted && !isLoading && !connectionAttemptedRef.current) {
+          console.log('[CONVERSATION] Initiating conversation');
+          startConversation();
+        } else {
+          console.log(`[CONVERSATION] Not starting conversation - isStarted: ${isStarted}, attempted: ${connectionAttemptedRef.current}, isLoading: ${isLoading}`);
+        }
+      }, 300);
+    };
+    
+    // Function to properly clean up
+    const cleanupConversation = async () => {
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
+      
+      // Only end the conversation if we were the ones who started it
+      if (mounted && isStarted && !isActive) {
+        console.log('[CONVERSATION] Cleaning up conversation - isActive is now false');
+        await endConversation();
+      }
+    };
+    
+    if (isActive && !isStarted && !isLoading && !connectionAttemptedRef.current) {
+      initiateConversation();
+    } else if (!isActive && isStarted) {
+      cleanupConversation();
     }
     
-    // Clean up when component unmounts or modal closes
+    // Clean up when component unmounts or when effect re-runs
     return () => {
+      console.log('[CONVERSATION] Effect cleanup with ID:', effectId.toString());
       mounted = false;
-      if (!isOpen && connectionAttemptedRef.current) {
+      
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
+      
+      // Don't automatically end the conversation on every cleanup
+      // Only end the conversation if isActive has changed to false
+      if (isStarted && !isActive) {
+        console.log('[CONVERSATION] Ending conversation during cleanup - isActive is false');
         endConversation();
       }
     };
-  }, [isOpen, startConversation, endConversation, isStarted, isLoading]);
+  }, [isActive]); // Only depend on isActive to prevent loops
   
-  if (!isOpen) return null;
+  // Don't render anything if not active
+  if (!isActive) return null;
   
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-xl">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Marine Part Assistant</h2>
+    <div className={`fixed z-40 transition-all duration-300 ease-in-out
+      md:right-4 md:bottom-24 md:max-w-[400px]
+      sm:right-2 sm:bottom-20 sm:max-w-[350px]
+      right-0 bottom-0 w-full sm:w-auto
+      ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}
+    >
+      <div className="bg-white rounded-lg shadow-xl overflow-hidden w-full h-full md:h-auto flex flex-col
+        max-h-[500px] md:max-h-[500px] sm:max-h-[450px]
+        mobile-conversation-height"
+      >
+        {/* Header */}
+        <div className="p-4 bg-blue-600 text-white flex justify-between items-center">
+          <div className="flex items-center">
+            <img 
+              src={chatbotAvatar} 
+              alt="AI Assistant" 
+              className="w-8 h-8 rounded-full mr-2"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMDA3MGYzIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgY2xhc3M9ImZlYXRoZXIgZmVhdGhlci11c2VyIj48cGF0aCBkPSJNMjAgMjF2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiI+PC9wYXRoPjxjaXJjbGUgY3g9IjEyIiBjeT0iNyIgcj0iNCI+PC9jaXJjbGU+PC9zdmc+";
+              }}
+            />
+            <span className="font-medium">Marine Parts Assistant</span>
+          </div>
           <button 
-            onClick={() => {
-              endConversation();
-              onClose();
-            }}
-            className="p-2 rounded-full hover:bg-gray-100"
+            onClick={onClose}
+            className="text-white"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
           </button>
         </div>
         
         {/* Only show product info if we have a product */}
         {productData && (
-          <div className="mb-4 p-3 bg-gray-100 rounded-lg">
+          <div className="p-3 bg-gray-100 border-b">
             <div className="flex items-center">
-              <div className="w-16 h-16 mr-4 bg-gray-200 rounded overflow-hidden">
+              <div className="w-12 h-12 mr-3 bg-gray-200 rounded overflow-hidden flex-shrink-0">
                 <img 
                   src={productData.Image_URL || productData["Image URL"]} 
                   alt={productData.Name}
@@ -417,22 +559,29 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
                   }}
                 />
               </div>
-              <div>
-                <p className="font-medium">{productData.Name}</p>
-                <p className="text-sm text-gray-600">SKU: {productData.SKU}</p>
+              <div className="overflow-hidden">
+                <p className="font-medium text-sm truncate">{productData.Name}</p>
+                <p className="text-xs text-gray-600">SKU: {productData.SKU}</p>
                 <p className="text-sm">{productData.Price}</p>
-                {productData.Stock && <p className="text-sm text-gray-600">Stock: {productData.Stock}</p>}
               </div>
             </div>
           </div>
         )}
         
-        <div className="text-center mb-4">
+        <div className="p-4 flex-1 overflow-auto">
           {error ? (
-            <p className="text-red-500 mb-2">{error}</p>
+            <div className="text-center">
+              <p className="text-red-500 mb-2">{error}</p>
+              <button
+                onClick={startConversation}
+                className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+              >
+                Retry
+              </button>
+            </div>
           ) : (
-            <div className="flex items-center justify-center">
-              <div className="w-12 h-12 mr-3 bg-blue-100 rounded-full overflow-hidden flex-shrink-0">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 mr-3 bg-blue-100 rounded-full overflow-hidden flex-shrink-0">
                 <img 
                   src={chatbotAvatar}
                   alt="AI Assistant" 
@@ -443,17 +592,16 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
                   }}
                 />
               </div>
-              <div className="text-left">
-                <p className="text-gray-800 font-medium">Marine AI Assistant</p>
-                <p className="text-xs text-gray-500">
+              <div>
+                <p className="text-gray-800 text-sm">
                   {isLoading ? 'Connecting...' : 
                     conversation.status === 'connected' 
-                      ? 'AI is listening...' 
+                      ? 'I\'m listening. How can I help you find marine parts?' 
                       : conversation.status === 'connecting' 
                         ? 'Connecting...' 
                         : conversation.status === 'disconnected' && isStarted 
                           ? 'Reconnecting...'
-                          : conversation.status}
+                          : 'Ready to help you find marine parts.'}
                 </p>
                 {conversation.isSpeaking && (
                   <p className="text-xs mt-1 text-blue-500">AI is speaking...</p>
@@ -461,34 +609,18 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
               </div>
             </div>
           )}
-        </div>
-        
-        <div className="mt-4 flex justify-between">
-          <button
-            onClick={endConversation}
-            disabled={isLoading || !isStarted}
-            className={`px-4 py-2 border border-gray-300 rounded ${
-              isLoading || !isStarted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'
-            }`}
-          >
-            End Conversation
-          </button>
           
-          {(!isStarted || error) && (
-            <button
-              onClick={startConversation}
-              disabled={isLoading}
-              className={`px-4 py-2 bg-blue-600 text-white rounded ${
-                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
-              }`}
-            >
-              {error ? 'Retry' : 'Start Conversation'}
-            </button>
-          )}
+          <div className="text-center text-xs text-gray-500 mt-2">
+            {isStarted ? 
+              'Speak to me or click the avatar again to end the conversation.' :
+              isLoading ? 
+                'Setting up your conversation...' : 
+                'Click the avatar to start or stop the conversation.'}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default ConversationModal; 
+export default InlineConversation; 
