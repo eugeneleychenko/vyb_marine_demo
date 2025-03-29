@@ -1,13 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import FileUploader from './components/FileUploader';
 import { CartProvider } from './components/CartContext';
 import CartIcon from './components/CartIcon';
 import CartDrawer from './components/CartDrawer';
+import ConversationModal from './components/ConversationModal';
 
 import './index.css';
 
 const App = () => {
+  // Add state for conversation modal
+  const [conversationModalOpen, setConversationModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
   const handleFileUpload = (file, extractedSku, matchingProducts) => {
     console.log('File uploaded:', file);
     console.log('Extracted SKU:', extractedSku);
@@ -32,6 +37,13 @@ const App = () => {
     }
   };
 
+  // Function to handle starting a conversation about a product
+  const handleStartConversation = (product) => {
+    console.log('Starting conversation about product:', product.Name);
+    setSelectedProduct(product);
+    setConversationModalOpen(true);
+  };
+
   return (
     <CartProvider>
       <div className="min-h-screen bg-gray-50">
@@ -48,14 +60,26 @@ const App = () => {
             <h2 className="text-2xl font-semibold mb-6">Image Upload with SKU Extraction</h2>
             <p className="mb-4 text-gray-600">
               Upload an image to extract SKU and find matching marine parts. 
-              Once a match is found, you can add it directly to your cart.
+              Once a match is found, you can add it directly to your cart or discuss it with our AI assistant.
             </p>
-            <FileUploader onFileUpload={handleFileUpload} />
+            <FileUploader 
+              onFileUpload={handleFileUpload} 
+              onStartConversation={handleStartConversation} 
+            />
           </div>
         </div>
         
         {/* Cart Drawer */}
         <CartDrawer />
+        
+        {/* Add the conversation modal */}
+        {selectedProduct && (
+          <ConversationModal 
+            isOpen={conversationModalOpen}
+            onClose={() => setConversationModalOpen(false)}
+            productData={selectedProduct}
+          />
+        )}
       </div>
     </CartProvider>
   );

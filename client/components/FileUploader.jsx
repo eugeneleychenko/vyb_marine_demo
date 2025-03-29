@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useCart } from './CartContext';
 
-const FileUploader = ({ onFileUpload }) => {
+const FileUploader = ({ onFileUpload, onStartConversation }) => {
   const [file, setFile] = useState(null);
   const [extractedSku, setExtractedSku] = useState(null);
   const [catalogData, setCatalogData] = useState([]);
@@ -77,7 +77,7 @@ const FileUploader = ({ onFileUpload }) => {
       price: typeof product.Price === 'string' 
         ? parseFloat(product.Price.replace(/[$,]/g, '')) || 0
         : (typeof product.Price === 'number' ? product.Price : 0),
-      category: product.Path.split('  ')[1] || 'Marine Parts',
+      category: product.Path?.split('  ')[1] || 'Marine Parts',
       image: product.Image_URL || product["Image URL"],
       color: '',
       description: product.Description,
@@ -160,12 +160,20 @@ const FileUploader = ({ onFileUpload }) => {
                       <p>SKU: {product.SKU}</p>
                       <p>Price: {product.Price}</p>
                       {product.Stock && <p>Stock: {product.Stock}</p>}
-                      <button
-                        onClick={() => handleAddToCart(product)}
-                        className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                      >
-                        Add to Cart
-                      </button>
+                      <div className="flex mt-2">
+                        <button
+                          onClick={() => handleAddToCart(product)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                        >
+                          Add to Cart
+                        </button>
+                        <button
+                          onClick={() => onStartConversation(product)}
+                          className="ml-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                        >
+                          Discuss with AI
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
