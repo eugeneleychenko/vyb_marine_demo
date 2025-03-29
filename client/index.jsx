@@ -1,7 +1,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import FileUploader from './components/FileUploader';
-import { InteractiveCheckoutDemo } from './components/ui/interactive-checkout';
+import { CartProvider } from './components/CartContext';
+import CartIcon from './components/CartIcon';
+import CartDrawer from './components/CartDrawer';
 
 import './index.css';
 
@@ -31,19 +33,31 @@ const App = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-10 text-center">Marine Demo</h1>
-      
-      <div className="mb-12">
-        <h2 className="text-2xl font-semibold mb-6">Image Upload with SKU Extraction</h2>
-        <FileUploader onFileUpload={handleFileUpload} />
+    <CartProvider>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header - made sticky */}
+        <header className="bg-white shadow-sm sticky top-0 z-30">
+          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 className="text-xl font-bold">Marine Parts</h1>
+            <CartIcon />
+          </div>
+        </header>
+        
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-12">
+            <h2 className="text-2xl font-semibold mb-6">Image Upload with SKU Extraction</h2>
+            <p className="mb-4 text-gray-600">
+              Upload an image to extract SKU and find matching marine parts. 
+              Once a match is found, you can add it directly to your cart.
+            </p>
+            <FileUploader onFileUpload={handleFileUpload} />
+          </div>
+        </div>
+        
+        {/* Cart Drawer */}
+        <CartDrawer />
       </div>
-      
-      <div className="mt-16 border-t pt-12">
-        <h2 className="text-2xl font-semibold mb-6">Interactive Checkout Demo</h2>
-        <InteractiveCheckoutDemo />
-      </div>
-    </div>
+    </CartProvider>
   );
 };
 

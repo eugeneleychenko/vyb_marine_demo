@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useCart } from './CartContext';
 
 const FileUploader = ({ onFileUpload }) => {
   const [file, setFile] = useState(null);
@@ -7,6 +8,7 @@ const FileUploader = ({ onFileUpload }) => {
   const [catalogData, setCatalogData] = useState([]);
   const [matchingProducts, setMatchingProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { addToCart, openCart } = useCart();
 
   // Fetch catalog data when component mounts
   useEffect(() => {
@@ -67,6 +69,27 @@ const FileUploader = ({ onFileUpload }) => {
     }
   }, [catalogData, onFileUpload]);
 
+  const handleAddToCart = (product) => {
+    // Format the product to match the expected format in the cart
+    const cartProduct = {
+      id: product.SKU,
+      name: product.Name,
+      price: typeof product.Price === 'string' 
+        ? parseFloat(product.Price.replace(/[$,]/g, '')) || 0
+        : (typeof product.Price === 'number' ? product.Price : 0),
+      category: product.Path.split('  ')[1] || 'Marine Parts',
+      image: product.Image_URL || product["Image URL"],
+      color: '',
+      description: product.Description,
+      sku: product.SKU,
+      stock: product.Stock,
+    };
+    
+    console.log('Adding product to cart with price:', product.Price, '→', cartProduct.price);
+    addToCart(cartProduct);
+    openCart();
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -117,13 +140,36 @@ const FileUploader = ({ onFileUpload }) => {
           ) : matchingProducts.length > 0 ? (
             <div className="mt-4">
               <h4 className="font-semibold">Found {matchingProducts.length} matching product(s):</h4>
-              <div className="mt-2 text-sm">
-                <p>See console for complete product details</p>
-                <p className="text-blue-600">First match: {matchingProducts[0].Name}</p>
-                <p>SKU: {matchingProducts[0].SKU}</p>
-                <p>Price: {matchingProducts[0].Price}</p>
-                {matchingProducts[0].Stock && <p>Stock: {matchingProducts[0].Stock}</p>}
-              </div>
+              
+              {matchingProducts.map((product, index) => (
+                <div key={index} className="mt-4 p-4 border rounded-lg">
+                  <div className="flex items-start">
+                    <div className="w-16 h-16 mr-4 bg-gray-100 rounded overflow-hidden">
+                      <img 
+                        src={product.Image_URL || product["Image URL"]} 
+                        alt={product.Name}
+                        className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://via.placeholder.com/150?text=No+Image";
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-600">{product.Name}</p>
+                      <p>SKU: {product.SKU}</p>
+                      <p>Price: {product.Price}</p>
+                      {product.Stock && <p>Stock: {product.Stock}</p>}
+                      <button
+                        onClick={() => handleAddToCart(product)}
+                        className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <p className="mt-4 text-center text-gray-500">No matching products found</p>
