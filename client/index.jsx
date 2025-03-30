@@ -4,7 +4,7 @@ import FileUploader from './components/FileUploader';
 import { CartProvider, useCart } from './components/CartContext';
 import CartIcon from './components/CartIcon';
 import CartDrawer from './components/CartDrawer';
-import ProductCarousel from './components/ProductCarousel';
+import ProductDisplay from './components/ProductDisplay';
 import ImageUploadDrawer from './components/ImageUploadDrawer';
 import InlineConversation from './components/InlineConversation';
 import chatbotAvatar from './assets/images/chatbot-avatar.png';
@@ -164,27 +164,14 @@ const AppContent = () => {
             </button>
             <h1 className="text-xl font-bold">Marine Parts</h1>
           </div>
-          <CartIcon />
-        </div>
-      </header>
-      
-      <div className="container mx-auto px-4 py-8">
-        {/* Product Carousel - renders only when products are available */}
-        <ProductCarousel />
-        
-        <div className="mb-12">
-          <h2 className="text-2xl font-semibold mb-6">Find Marine Parts Easily</h2>
-          <p className="mb-6 text-gray-600">
-            Use our AI assistant to search for marine parts or upload images to find exact matches.
-            Our system can extract SKUs from images and find the right parts for your needs.
-          </p>
           
-          {/* Chatbot Avatar - circular and clickable */}
-          <div className="flex justify-center mb-8">
+          {/* Right side icons */}
+          <div className="flex items-center">
+            {/* Chatbot Avatar - circular and clickable */}
             <button
               onClick={toggleConversation}
-              className={`w-24 h-24 rounded-full overflow-hidden transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
-                ${conversationActive ? 'ring-2 ring-blue-500 shadow-lg' : 'hover:shadow-lg'}`}
+              className={`w-12 h-12 mr-4 rounded-full overflow-hidden transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
+                ${conversationActive ? 'ring-2 ring-blue-500 shadow-md avatar-pulse' : 'hover:shadow-md'}`}
               title={conversationActive ? "End Conversation" : "Start Conversation"}
             >
               <img 
@@ -197,7 +184,23 @@ const AppContent = () => {
                 }}
               />
             </button>
+            <CartIcon />
           </div>
+        </div>
+      </header>
+      
+      <div className="container mx-auto px-4 py-8">
+        {/* Replace ProductCarousel with ProductDisplay */}
+        <ProductDisplay />
+        
+        <div className="mb-12">
+          <h2 className="text-2xl font-semibold mb-6">Find Marine Parts Easily</h2>
+          <p className="mb-6 text-gray-600">
+            Use our AI assistant to search for marine parts or upload images to find exact matches.
+            Our system can extract SKUs from images and find the right parts for your needs.
+          </p>
+          
+          {/* Chatbot Avatar has been moved to the header */}
         </div>
       </div>
       

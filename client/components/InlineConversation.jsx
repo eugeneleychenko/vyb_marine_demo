@@ -184,13 +184,17 @@ const InlineConversation = forwardRef(({ isActive, onClose, productData }, ref) 
           // Limit results
           matches = matches.slice(0, maxResults);
           console.log(`[CLIENT TOOL] filterProducts: Limited to ${matches.length} results`);
+          console.log('[CLIENT TOOL] filterProducts: Matches data:', JSON.stringify(matches));
           
           // Display results in carousel
           if (matches.length > 0) {
-            console.log('[CLIENT TOOL] filterProducts: Dispatching showProductCarousel event');
+            console.log('[CLIENT TOOL] filterProducts: Dispatching showProductCarousel event with', matches.length, 'products');
             window.dispatchEvent(new CustomEvent('marine:showProductCarousel', { 
               detail: { products: matches } 
             }));
+            console.log('[CLIENT TOOL] filterProducts: Event dispatched successfully');
+          } else {
+            console.log('[CLIENT TOOL] filterProducts: No matches found, not dispatching event');
           }
           
           // Return formatted results
