@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useConversation } from '@11labs/react';
 import { getSignedUrl } from '../utils/elevenLabsAuth';
 import chatbotAvatar from '../assets/images/chatbot-avatar.png';
@@ -6,7 +6,8 @@ import chatbotAvatar from '../assets/images/chatbot-avatar.png';
 // API endpoint for inventory
 const INVENTORY_API = 'https://opensheet.elk.sh/1euKbdyTecaQmPZmupqmWfkVhVqp9ZJ4BCTFJHHGmdXI/1';
 
-const InlineConversation = ({ isActive, onClose, productData }) => {
+// Use forwardRef to expose methods to parent component
+const InlineConversation = forwardRef(({ isActive, onClose, productData }, ref) => {
   const [isStarted, setIsStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -238,9 +239,44 @@ const InlineConversation = ({ isActive, onClose, productData }) => {
           
           // If not, or if the SKU doesn't match, search in our inventory
           if (!product || product.SKU !== params.productId) {
-            console.log('[CLIENT TOOL] addToCart: Searching in inventory for SKU:', params.productId);
+            console.log('[CLIENT TOOL] addToCart: Searching in inventory for product:', params.productId);
             const inventory = await fetchInventory();
+            
+            // First try exact SKU match
             product = inventory.find(p => p.SKU === params.productId);
+            
+            // If no product found by SKU, try to find by name or partial name match
+            if (!product) {
+              console.log('[CLIENT TOOL] addToCart: No exact SKU match, trying by product name');
+              // Look for product by exact name match first
+              product = inventory.find(p => 
+                p.Name.toLowerCase() === params.productId.toLowerCase()
+              );
+              
+              // If still no match, try partial name match
+              if (!product) {
+                console.log('[CLIENT TOOL] addToCart: No exact name match, trying partial name match');
+                // Find products whose names contain the search term
+                const nameMatches = inventory.filter(p => 
+                  p.Name.toLowerCase().includes(params.productId.toLowerCase())
+                );
+                
+                if (nameMatches.length > 0) {
+                  // If multiple matches, take the first one
+                  product = nameMatches[0];
+                  console.log('[CLIENT TOOL] addToCart: Found product by partial name match:', product.Name);
+                }
+              }
+              
+              // As a last resort, check if it's a manufacturer's part number without prefix
+              if (!product) {
+                console.log('[CLIENT TOOL] addToCart: Trying to match with manufacturer part number');
+                product = inventory.find(p => 
+                  p.MPN === params.productId || 
+                  p.SKU.endsWith(params.productId)
+                );
+              }
+            }
           }
           
           console.log('[CLIENT TOOL] addToCart: Found product:', product);
@@ -273,8 +309,8 @@ const InlineConversation = ({ isActive, onClose, productData }) => {
             
             return Promise.resolve(`Successfully added ${quantity} ${quantity === 1 ? 'unit' : 'units'} of ${product.Name} to your cart.`);
           } else {
-            console.error('[CLIENT TOOL] addToCart: Product not found with SKU:', params.productId);
-            return Promise.resolve(`Could not find a product with SKU: ${params.productId}. Please try searching for a product first.`);
+            console.error('[CLIENT TOOL] addToCart: Product not found with ID:', params.productId);
+            return Promise.resolve(`Could not find a product matching "${params.productId}". Please try searching for a product first using the searchProducts tool.`);
           }
         } catch (error) {
           console.error('Error adding product to cart:', error);
@@ -300,6 +336,31 @@ const InlineConversation = ({ isActive, onClose, productData }) => {
     }
   });
 
+  // End conversation when modal closes
+  const endConversation = useCallback(async () => {
+    if (isStarted) {
+      try {
+        console.log('[CONVERSATION] Ending conversation');
+        setIsLoading(true);
+        await conversation.endSession();
+        connectionAttemptedRef.current = false;
+        setIsStarted(false);
+        setIsLoading(false);
+        console.log('[CONVERSATION] Conversation ended successfully');
+      } catch (error) {
+        console.error('[CONVERSATION] Error ending conversation:', error);
+        setIsLoading(false);
+      }
+    }
+  }, [conversation, isStarted]);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    endConversation: async () => {
+      await endConversation();
+    }
+  }));
+  
   // Start conversation with or without product context
   const startConversation = useCallback(async () => {
     // Prevent multiple connection attempts
@@ -360,7 +421,9 @@ const InlineConversation = ({ isActive, onClose, productData }) => {
                   When users are interested in a product:
                   1. Use searchProducts to find products matching their description
                   2. Present the options clearly with product names, prices, and brief descriptions
-                  3. If they want to purchase, use addToCart with the correct SKU
+                  3. If they want to purchase, use addToCart with the product name or SKU
+                  
+                  IMPORTANT: When adding products to cart, preferably use the product's full name rather than the SKU for better matching. The addToCart tool can match products by their name, which is more reliable than using SKUs that may have different formats.
                   
                   Be helpful, conversational, and guide the user through the process of finding marine parts.
                   
@@ -386,37 +449,6 @@ const InlineConversation = ({ isActive, onClose, productData }) => {
       setIsLoading(false);
     }
   }, [conversation, productData, agentId, isStarted, isLoading]);
-  
-  // End conversation when component unmounts or becomes inactive
-  const endConversation = useCallback(async () => {
-    // Only attempt to end if we're actually in a conversation
-    if (!isStarted) {
-      console.log('[CONVERSATION] endConversation called but not started - just resetting flags');
-      connectionAttemptedRef.current = false;
-      setIsLoading(false);
-      return;
-    }
-    
-    console.log('[CONVERSATION] Ending conversation session');
-    
-    try {
-      setIsLoading(true);
-      
-      // Attempt to end the session with ElevenLabs
-      await conversation.endSession();
-      console.log('[CONVERSATION] Successfully ended conversation with ElevenLabs');
-      
-      // Reset all state
-      connectionAttemptedRef.current = false;
-      setIsStarted(false);
-    } catch (error) {
-      console.error('[CONVERSATION] Error ending conversation:', error);
-    } finally {
-      // Always turn off loading state, even if there was an error
-      setIsLoading(false);
-      console.log('[CONVERSATION] Cleanup complete');
-    }
-  }, [conversation, isStarted]);
   
   // Preload inventory data when component mounts
   useEffect(() => {
@@ -621,6 +653,6 @@ const InlineConversation = ({ isActive, onClose, productData }) => {
       </div>
     </div>
   );
-};
+});
 
 export default InlineConversation; 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import FileUploader from './components/FileUploader';
 import { CartProvider, useCart } from './components/CartContext';
@@ -18,9 +18,13 @@ const AppContent = () => {
   const [imageUploadDrawerOpen, setImageUploadDrawerOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   
+  // Add ref for the conversation component
+  const conversationRef = useRef(null);
+  
   // Access cart context functions directly at component level
   const { addToCart, openCart } = useCart();
 
+  // Update handleFileUpload to start a new conversation with product context
   const handleFileUpload = (file, extractedSku, matchingProducts) => {
     console.log('File uploaded:', file);
     console.log('Extracted SKU:', extractedSku);
@@ -41,11 +45,29 @@ const AppContent = () => {
       console.log('Link:', product.Links);
       console.log('Image URL:', product.Image_URL || product["Image URL"]);
       
-      // Close the drawer after successful upload
-      setImageUploadDrawerOpen(false);
+      // Start a new conversation with the product context
+      setSelectedProduct(product);
+      setConversationActive(true);
     } else {
       console.log('No matching products found');
+      
+      // Optionally start a conversation anyway to inform the user
+      setConversationActive(true);
+      setSelectedProduct(null);
     }
+  };
+
+  // Function to handle opening the image upload drawer
+  const handleOpenImageUploader = () => {
+    // If a conversation is active, end it first
+    if (conversationActive && conversationRef.current) {
+      console.log('[WORKFLOW] Ending current conversation before image upload');
+      conversationRef.current.endConversation();
+      setConversationActive(false);
+    }
+    
+    // Then open the image upload drawer
+    setImageUploadDrawerOpen(true);
   };
 
   // Function to handle starting a conversation about a product
@@ -102,8 +124,9 @@ const AppContent = () => {
   // Listen for openImageUpload event
   const handleOpenImageUploadEvent = useCallback(() => {
     console.log('[EVENT HANDLER] marine:openImageUpload event received');
-    setImageUploadDrawerOpen(true);
-  }, []);
+    // Use the new handler to properly end conversation before opening
+    handleOpenImageUploader();
+  }, [conversationActive]);
 
   useEffect(() => {
     console.log('[SETUP] Adding event listeners');
@@ -130,7 +153,7 @@ const AppContent = () => {
           <div className="flex items-center">
             {/* Image Upload Icon on the left side */}
             <button
-              onClick={() => setImageUploadDrawerOpen(true)}
+              onClick={handleOpenImageUploader}
               className="mr-4 p-2 rounded-full hover:bg-gray-100"
               aria-label="Upload Image"
               title="Upload Image"
@@ -189,8 +212,9 @@ const AppContent = () => {
         onStartConversation={handleStartConversation}
       />
       
-      {/* Replace modal with inline conversation */}
+      {/* Replace modal with inline conversation - Added ref */}
       <InlineConversation 
+        ref={conversationRef}
         isActive={conversationActive}
         onClose={() => setConversationActive(false)}
         productData={selectedProduct}

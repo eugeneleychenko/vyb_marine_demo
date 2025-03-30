@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useCart } from './CartContext';
 
-const FileUploader = ({ onFileUpload, onStartConversation }) => {
+const FileUploader = ({ onFileUpload, hideProductDisplay = false }) => {
   const [file, setFile] = useState(null);
   const [extractedSku, setExtractedSku] = useState(null);
   const [catalogData, setCatalogData] = useState([]);
@@ -63,6 +63,7 @@ const FileUploader = ({ onFileUpload, onStartConversation }) => {
       
       setIsLoading(false);
       
+      // Call parent callback only
       if (onFileUpload) {
         onFileUpload(uploadedFile, extractedSku, matches);
       }
@@ -137,50 +138,34 @@ const FileUploader = ({ onFileUpload, onStartConversation }) => {
           
           {isLoading ? (
             <p className="mt-4 text-center text-gray-500">Looking up product information...</p>
-          ) : matchingProducts.length > 0 ? (
-            <div className="mt-4">
-              <h4 className="font-semibold">Found {matchingProducts.length} matching product(s):</h4>
-              
+          ) : !hideProductDisplay && matchingProducts.length > 0 ? (
+            <div>
+              <h3 className="font-medium mt-4 mb-2">Matching Products</h3>
               {matchingProducts.map((product, index) => (
-                <div key={index} className="mt-4 p-4 border rounded-lg">
-                  <div className="flex items-start">
-                    <div className="w-16 h-16 mr-4 bg-gray-100 rounded overflow-hidden">
-                      <img 
-                        src={product.Image_URL || product["Image URL"]} 
-                        alt={product.Name}
-                        className="w-full h-full object-cover" 
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "https://via.placeholder.com/150?text=No+Image";
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-blue-600">{product.Name}</p>
-                      <p>SKU: {product.SKU}</p>
-                      <p>Price: {product.Price}</p>
-                      {product.Stock && <p>Stock: {product.Stock}</p>}
-                      <div className="flex mt-2">
-                        <button
-                          onClick={() => handleAddToCart(product)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                        >
-                          Add to Cart
-                        </button>
-                        <button
-                          onClick={() => onStartConversation(product)}
-                          className="ml-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                        >
-                          Discuss with AI
-                        </button>
-                      </div>
-                    </div>
+                <div key={index} className="p-3 bg-gray-50 rounded-lg mb-2">
+                  <p className="font-medium text-blue-600">{product.Name}</p>
+                  <p className="text-sm">SKU: {product.SKU}</p>
+                  <p className="text-sm">Price: {product.Price}</p>
+                  {product.Stock && <p className="text-sm text-gray-600">Stock: {product.Stock}</p>}
+                  <div className="mt-2">
+                    <button
+                      onClick={() => handleAddToCart(product)}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                    >
+                      Add to Cart
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
+          ) : matchingProducts.length === 0 && !hideProductDisplay ? (
+            <p className="mt-4 text-center text-gray-500">No matching products found for this image.</p>
           ) : (
-            <p className="mt-4 text-center text-gray-500">No matching products found</p>
+            <p className="mt-4 text-center text-gray-500">
+              {matchingProducts.length > 0 
+                ? "Product found! Conversation starting..." 
+                : "No matching products found."}
+            </p>
           )}
         </div>
       )}

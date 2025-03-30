@@ -1,7 +1,7 @@
 import React from 'react';
 import FileUploader from './FileUploader';
 
-const ImageUploadDrawer = ({ isOpen, onClose, onFileUpload, onStartConversation }) => {
+const ImageUploadDrawer = ({ isOpen, onClose, onFileUpload }) => {
   return (
     <>
       {/* Backdrop */}
@@ -35,12 +35,12 @@ const ImageUploadDrawer = ({ isOpen, onClose, onFileUpload, onStartConversation 
           <div className="flex-1">
             <p className="mb-4 text-gray-600">
               Upload an image to extract SKU and find matching marine parts. 
-              Once a match is found, you can add it directly to your cart or discuss it with our AI assistant.
+              A new conversation will start automatically with the product details after uploading.
             </p>
             
             <FileUploader 
-              onFileUpload={onFileUpload} 
-              onStartConversation={onStartConversation} 
+              onFileUpload={onFileUpload}
+              hideProductDisplay={true}
             />
           </div>
         </div>
