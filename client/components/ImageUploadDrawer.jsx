@@ -34,8 +34,7 @@ const ImageUploadDrawer = ({ isOpen, onClose, onFileUpload }) => {
           
           <div className="flex-1">
             <p className="mb-4 text-gray-600">
-              Upload an image to extract SKU and find matching marine parts. 
-              A new conversation will start automatically with the product details after uploading.
+              Upload an image of the product you want to discuss.
             </p>
             
             <FileUploader 

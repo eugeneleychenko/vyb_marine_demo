@@ -129,11 +129,20 @@ const FileUploader = ({ onFileUpload, hideProductDisplay = false }) => {
                 className="w-full h-full object-cover" 
               />
             </div>
-            <div>
-              <p><span className="font-medium">Filename:</span> {file.name}</p>
-              <p><span className="font-medium">Size:</span> {(file.size / 1024).toFixed(2)} KB</p>
-              <p><span className="font-medium">Extracted SKU:</span> {extractedSku}</p>
-            </div>
+            {matchingProducts.length > 0 ? (
+              <div>
+                <p><span className="font-medium">Product Name:</span> {matchingProducts[0].Name}</p>
+                <p><span className="font-medium">Price:</span> {matchingProducts[0].Price}</p>
+                <p><span className="font-medium">Qty:</span> {matchingProducts[0].Stock || "Out of stock"}</p>
+                <p className="text-xs text-gray-500 mt-1">SKU: {extractedSku}</p>
+              </div>
+            ) : (
+              <div>
+                <p><span className="font-medium">Filename:</span> {file.name}</p>
+                <p><span className="font-medium">Size:</span> {(file.size / 1024).toFixed(2)} KB</p>
+                <p><span className="font-medium">Extracted SKU:</span> {extractedSku}</p>
+              </div>
+            )}
           </div>
           
           {isLoading ? (
@@ -163,7 +172,7 @@ const FileUploader = ({ onFileUpload, hideProductDisplay = false }) => {
           ) : (
             <p className="mt-4 text-center text-gray-500">
               {matchingProducts.length > 0 
-                ? "Product found! Conversation starting..." 
+                ? "" 
                 : "No matching products found."}
             </p>
           )}
