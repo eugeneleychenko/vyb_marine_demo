@@ -170,7 +170,7 @@ const AppContent = () => {
             {/* Chatbot Avatar - circular and clickable */}
             <button
               onClick={toggleConversation}
-              className={`w-12 h-12 mr-4 rounded-full overflow-hidden transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
+              className={`w-24 h-24 mr-4 rounded-full overflow-hidden transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
                 ${conversationActive ? 'ring-2 ring-blue-500 shadow-md avatar-pulse' : 'hover:shadow-md'}`}
               title={conversationActive ? "End Conversation" : "Start Conversation"}
             >
