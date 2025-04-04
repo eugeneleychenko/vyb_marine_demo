@@ -43,3 +43,8 @@ Thumbs.db
 # Project specific
 client/node_modules/
 server/node_modules/ 
+
+Marine Engine Parts - Catalog.csv
+# Ignore marine parts images folder
+marine_parts_images/
+
