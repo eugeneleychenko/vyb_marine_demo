@@ -173,7 +173,7 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
               price: p.Price,
               stock: p.Stock || "Out of stock",
               description: p.Description ? p.Description.substring(0, 100) + (p.Description.length > 100 ? '...' : '') : 'No description available',
-              imageUrl: p["Image URL"],
+              imageUrl: p["DG URL"],
               productUrl: p.Links,
               path: p.Path ? p.Path.substring(0, p.Path.lastIndexOf(p.Name)).trim() : ''
             }))
@@ -225,7 +225,7 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
                 ? parseFloat(product.Price.replace(/[$,]/g, '')) || 0
                 : (typeof product.Price === 'number' ? product.Price : 0),
               category: product.Path?.split('  ')[1] || 'Marine Parts',
-              image: product.Image_URL || product["Image URL"],
+              image: product.Image_URL || product["DG URL"],
               color: '',
               description: product.Description,
               sku: product.SKU,
@@ -412,7 +412,7 @@ const ConversationModal = ({ isOpen, onClose, productData }) => {
             <div className="flex items-center">
               <div className="w-16 h-16 mr-4 bg-gray-200 rounded overflow-hidden">
                 <img 
-                  src={productData.Image_URL || productData["Image URL"]} 
+                  src={productData.Image_URL || productData["DG URL"]} 
                   alt={productData.Name}
                   className="w-full h-full object-cover"
                   onError={(e) => {

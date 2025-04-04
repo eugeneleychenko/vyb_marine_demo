@@ -43,7 +43,7 @@ const AppContent = () => {
       console.log('MPN:', product.MPN);
       console.log('UPC:', product.UPC);
       console.log('Link:', product.Links);
-      console.log('Image URL:', product.Image_URL || product["Image URL"]);
+      console.log('DG URL:', product.Image_URL || product["DG URL"]);
       
       // Start a new conversation with the product context
       setSelectedProduct(product);

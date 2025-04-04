@@ -104,8 +104,8 @@ const ProductCarousel = ({ initialProducts = [] }) => {
             // Log each product to debug
             console.log(`[PRODUCT CAROUSEL] Product ${index}:`, product);
             
-            // Get image URL with fallback
-            const imageUrl = product["Image URL"] || product.ImageUrl || product.imageURL || "https://via.placeholder.com/300x200?text=No+Image";
+            // Get DG URL with fallback
+            const imageUrl = product["DG URL"] || product.ImageUrl || product.imageURL || "https://via.placeholder.com/300x200?text=No+Image";
             
             // Get product name with fallback
             const productName = product.Name || product.name || "Unknown Product";

@@ -39,7 +39,7 @@ const AllProductsWall = () => {
         ? parseFloat(product.Price.replace(/[$,]/g, '')) || 0
         : (typeof product.Price === 'number' ? product.Price : 0),
       category: product.Path?.split('  ')[1] || 'Marine Parts',
-      image: product["Image URL"],
+      image: product["DG URL"],
       color: '',
       description: product.Description,
       sku: product.SKU,
@@ -76,7 +76,7 @@ const AllProductsWall = () => {
           <div key={product.SKU} className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow duration-200">
             <div className="h-48 bg-gray-200">
               <img 
-                src={product["Image URL"]} 
+                src={product["DG URL"]} 
                 alt={product.Name} 
                 className="w-full h-full object-contain"
                 onError={(e) => {

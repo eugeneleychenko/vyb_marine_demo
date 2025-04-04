@@ -79,7 +79,7 @@ const FileUploader = ({ onFileUpload, hideProductDisplay = false }) => {
         ? parseFloat(product.Price.replace(/[$,]/g, '')) || 0
         : (typeof product.Price === 'number' ? product.Price : 0),
       category: product.Path?.split('  ')[1] || 'Marine Parts',
-      image: product.Image_URL || product["Image URL"],
+      image: product.Image_URL || product["DG URL"],
       color: '',
       description: product.Description,
       sku: product.SKU,

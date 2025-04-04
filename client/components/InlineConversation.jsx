@@ -130,7 +130,7 @@ const InlineConversation = forwardRef(({ isActive, onClose, productData }, ref) 
               price: p.Price,
               stock: p.Stock || "Out of stock",
               description: p.Description ? p.Description.substring(0, 100) + (p.Description.length > 100 ? '...' : '') : 'No description available',
-              imageUrl: p["Image URL"]
+              imageUrl: p["DG URL"]
             }))
           };
         } catch (error) {
@@ -208,7 +208,7 @@ const InlineConversation = forwardRef(({ isActive, onClose, productData }, ref) 
               price: p.Price,
               stock: p.Stock || "Out of stock",
               description: p.Description ? p.Description.substring(0, 100) + (p.Description.length > 100 ? '...' : '') : 'No description available',
-              imageUrl: p["Image URL"],
+              imageUrl: p["DG URL"],
               productUrl: p.Links,
               path: p.Path ? p.Path.substring(0, p.Path.lastIndexOf(p.Name)).trim() : ''
             }))
@@ -295,7 +295,7 @@ const InlineConversation = forwardRef(({ isActive, onClose, productData }, ref) 
                 ? parseFloat(product.Price.replace(/[$,]/g, '')) || 0
                 : (typeof product.Price === 'number' ? product.Price : 0),
               category: product.Path?.split('  ')[1] || 'Marine Parts',
-              image: product.Image_URL || product["Image URL"],
+              image: product.Image_URL || product["DG URL"],
               color: '',
               description: product.Description,
               sku: product.SKU,
@@ -586,7 +586,7 @@ const InlineConversation = forwardRef(({ isActive, onClose, productData }, ref) 
             <div className="flex items-center">
               <div className="w-12 h-12 mr-3 bg-gray-200 rounded overflow-hidden flex-shrink-0">
                 <img 
-                  src={productData.Image_URL || productData["Image URL"]} 
+                  src={productData.Image_URL || productData["DG URL"]} 
                   alt={productData.Name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
