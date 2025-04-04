@@ -39,11 +39,18 @@ export const CartProvider = ({ children }) => {
   };
 
   const toggleCart = () => {
-    setIsCartOpen(!isCartOpen);
+    const newCartState = !isCartOpen;
+    setIsCartOpen(newCartState);
+    if (newCartState) {
+      // Dispatch event to notify other components that cart is opening
+      window.dispatchEvent(new CustomEvent('drawer:cartOpened'));
+    }
   };
 
   const openCart = () => {
     setIsCartOpen(true);
+    // Dispatch event to notify other components that cart is opening
+    window.dispatchEvent(new CustomEvent('drawer:cartOpened'));
   };
 
   return (

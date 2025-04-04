@@ -22,7 +22,7 @@ const AppContent = () => {
   const conversationRef = useRef(null);
   
   // Access cart context functions directly at component level
-  const { addToCart, openCart } = useCart();
+  const { addToCart, openCart, isCartOpen, toggleCart } = useCart();
 
   // Update handleFileUpload to start a new conversation with product context
   const handleFileUpload = (file, extractedSku, matchingProducts) => {
@@ -68,6 +68,8 @@ const AppContent = () => {
     
     // Then open the image upload drawer
     setImageUploadDrawerOpen(true);
+    // Dispatch event to notify other components that image upload drawer is opening
+    window.dispatchEvent(new CustomEvent('drawer:imageUploaderOpened'));
   };
 
   // Function to handle starting a conversation about a product
@@ -137,13 +139,33 @@ const AppContent = () => {
     // Add event listener for openImageUpload
     window.addEventListener('marine:openImageUpload', handleOpenImageUploadEvent);
     
+    // Add event listener to close image upload drawer when cart is opened
+    const handleCartOpened = () => {
+      if (imageUploadDrawerOpen) {
+        console.log('[EVENT HANDLER] Closing image upload drawer because cart was opened');
+        setImageUploadDrawerOpen(false);
+      }
+    };
+    window.addEventListener('drawer:cartOpened', handleCartOpened);
+    
+    // Add event listener to close cart when image upload drawer is opened
+    const handleImageUploaderOpened = () => {
+      if (isCartOpen) {
+        console.log('[EVENT HANDLER] Closing cart because image uploader was opened');
+        toggleCart();
+      }
+    };
+    window.addEventListener('drawer:imageUploaderOpened', handleImageUploaderOpened);
+    
     // Clean up
     return () => {
       console.log('[CLEANUP] Removing event listeners');
       window.removeEventListener('cart:addItem', handleAddToCartEvent);
       window.removeEventListener('marine:openImageUpload', handleOpenImageUploadEvent);
+      window.removeEventListener('drawer:cartOpened', handleCartOpened);
+      window.removeEventListener('drawer:imageUploaderOpened', handleImageUploaderOpened);
     };
-  }, [handleAddToCartEvent, handleOpenImageUploadEvent]);
+  }, [handleAddToCartEvent, handleOpenImageUploadEvent, imageUploadDrawerOpen, isCartOpen, toggleCart]);
 
   return (
     <div className="min-h-screen bg-gray-50">
